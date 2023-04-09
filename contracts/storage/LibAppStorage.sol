@@ -2,7 +2,7 @@
 pragma solidity ^0.8.16;
 
 import {LibDiamond} from "../libraries/LibDiamond.sol";
-import { LibMeta } from "../shared/LibMeta.sol";
+import {LibMeta} from "../shared/LibMeta.sol";
 import "../libraries/LibRMRKNestable.sol";
 
 /*
@@ -20,35 +20,25 @@ import "../libraries/LibRMRKNestable.sol";
  * Common storage for diamond project
  */
 struct AppStorage {
-
     // base info
     /// Token name
     string _name;
-
     /// Token symbol
     string _symbol;
-
     // collection meta
     string _collectionMeta;
-
     // token URI
     string _tokenURI;
-
     // price per mint
     uint256 _pricePerMint;
-
     // max supply
     uint256 _maxSupply;
-
     // current num of minted token
     uint256 _totalSupply;
-
     // royalty receipient address
     address _royaltyRecipient;
-
     // royalty percentage bps
     uint256 _royaltyPercentageBps;
-
     // Mapping owner address to token count
     mapping(address => uint256) _balances;
     // Mapping from token ID to approver address to approved address
@@ -71,7 +61,7 @@ struct AppStorage {
     mapping(address => mapping(uint256 => uint256)) _childIsInActive;
     // Mapping of owner address to all tokenIDs
     mapping(address => uint256[]) _ownersToTokenIds;
-    
+    // Mapping of tokenId to index of owner's collection
     mapping(uint256 => uint256) _tokenIdToOwnerIndex;
 }
 
@@ -101,7 +91,7 @@ contract Modifiers {
         LibDiamond.enforceIsContractOwner();
         _;
     }
-    
+
     /**
      * Decoration: should check if the current operator is the owner of the token or is approved to operate the token
      */
