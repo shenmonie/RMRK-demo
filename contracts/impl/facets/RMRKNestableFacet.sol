@@ -10,11 +10,13 @@ import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import {Modifiers} from "../../storage/LibAppStorage.sol";
 import {LibERC721} from "../../libraries/LibERC721.sol";
-import { LibNestable } from "../libs/LibNestable.sol";
-import { LibOwnership } from "../libs/LibOwnership.sol";
-import { LibMeta } from "../../shared/LibMeta.sol";
-import { LibQuery } from "../libs/LibQuery.sol";
+import {LibNestable} from "../libs/LibNestable.sol";
+import {LibOwnership} from "../libs/LibOwnership.sol";
+import {LibMeta} from "../../shared/LibMeta.sol";
+import {LibQuery} from "../libs/LibQuery.sol";
 import "../../shared/RMRKErrors.sol";
+import {LibNestable} from "../libs/LibNestable.sol";
+import {LibOwnership} from "../libs/LibOwnership.sol";
 
 /**
  * @title RMRKNestable
@@ -25,9 +27,6 @@ import "../../shared/RMRKErrors.sol";
  */
 contract RMRKNestableFacet is Modifiers {
     using Address for address;
-    
-
-    // ------------------------------- ERC721 ---------------------------------
 
     function balanceOf(address owner) public view returns (uint256) {
         if (owner == address(0)) revert ERC721AddressZeroIsNotaValidOwner();
@@ -37,42 +36,37 @@ contract RMRKNestableFacet is Modifiers {
     /**
      * @notice Used to retrive certain tokenId with its index in `owner`'s collection
      * @param owner Address of the account being checked
-     * @return tokenId the tokenId in that index 
+     * @return tokenId the tokenId in that index
      * @return tokenUri the token url
      */
-    function getOwnerCollectionByIndex(address owner, uint256 index)
-        public
-        view
-        virtual returns (uint256 tokenId, string memory tokenUri) {
-        
+    function getOwnerCollectionByIndex(address owner, uint256 index) public view virtual returns (uint256 tokenId, string memory tokenUri) {
         if (owner == address(0)) revert();
         if (index >= s._ownersToTokenIds[owner].length) revert();
 
         tokenId = s._ownersToTokenIds[owner][index];
-        tokenUri = LibQuery.tokenURI(tokenId); 
+        tokenUri = LibQuery.tokenURI(tokenId);
     }
 
     ////////////////////////////////////////
     //              Ownership
     ////////////////////////////////////////
 
-    function ownerOf(
-        uint256 tokenId
-    ) public view returns (address) {
+    function ownerOf(uint256 tokenId) public view returns (address) {
         return LibOwnership.ownerOf(tokenId);
     }
+
 
     ////////////////////////////////////////
     //      CHILD MANAGEMENT PUBLIC
     ////////////////////////////////////////
 
     /**
-     * add child 
+     * add child
      * @param   parentId        id of NFT that is waiting for adding child
      * @param   childId         child's token id in its original contract
      * @param   data            other data
      */
-    function addChild(uint256 parentId, uint256 childId, bytes memory data) public  {
+    function addChild(uint256 parentId, uint256 childId, bytes memory data) public {
         LibNestable._requireMinted(parentId);
 
         address childAddress = LibMeta._msgSender();
@@ -92,7 +86,7 @@ contract RMRKNestableFacet is Modifiers {
      * @param   childAddress    child's belonging contract address
      * @param   childId         child's token id in its belonging contract
      */
-    function acceptChild(uint256 parentId, uint256 childIndex, address childAddress, uint256 childId) public  onlyApprovedOrOwner(parentId) {
+    function acceptChild(uint256 parentId, uint256 childIndex, address childAddress, uint256 childId) public onlyApprovedOrOwner(parentId) {
         _acceptChild(parentId, childIndex, childAddress, childId);
     }
 
@@ -111,7 +105,7 @@ contract RMRKNestableFacet is Modifiers {
      * @param childId ID of the child token expected to be located at the specified index of the given parent token's
      *  pending children array
      */
-    function _acceptChild(uint256 parentId, uint256 childIndex, address childAddress, uint256 childId) internal  {
+    function _acceptChild(uint256 parentId, uint256 childIndex, address childAddress, uint256 childId) internal {
         Child memory child = pendingChildOf(parentId, childIndex);
         _checkExpectedChild(child, childAddress, childId);
         if (s._childIsInActive[childAddress][childId] != 0) revert RMRKChildAlreadyExists();
@@ -137,7 +131,7 @@ contract RMRKNestableFacet is Modifiers {
      * @param maxRejections Maximum number of expected children to reject, used to prevent from
      *  rejecting children which arrive just before this operation.
      */
-    function rejectAllChildren(uint256 tokenId, uint256 maxRejections) public  onlyApprovedOrOwner(tokenId) {
+    function rejectAllChildren(uint256 tokenId, uint256 maxRejections) public onlyApprovedOrOwner(tokenId) {
         _rejectAllChildren(tokenId, maxRejections);
     }
 
@@ -153,14 +147,14 @@ contract RMRKNestableFacet is Modifiers {
      * @param maxRejections Maximum number of expected children to reject, used to prevent from
      *  rejecting children which arrive just before this operation.
      */
-    function _rejectAllChildren(uint256 tokenId, uint256 maxRejections) internal  {
+    function _rejectAllChildren(uint256 tokenId, uint256 maxRejections) internal {
         if (s._pendingChildren[tokenId].length > maxRejections) revert RMRKUnexpectedNumberOfChildren();
 
         delete s._pendingChildren[tokenId];
         emit LibNestable.AllChildrenRejected(tokenId);
     }
 
-     /**
+    /**
      * @notice Used to transfer a child token from a given parent token.
      * @dev When transferring a child token, the owner of the token is set to `to`, or is not updated in the event of
      *  `to` being the `0x0` address.
@@ -184,7 +178,7 @@ contract RMRKNestableFacet is Modifiers {
         uint256 childId,
         bool isPending,
         bytes memory data
-    ) public  onlyApprovedOrOwner(tokenId) {
+    ) public onlyApprovedOrOwner(tokenId) {
         _transferChild(tokenId, to, destinationId, childIndex, childAddress, childId, isPending, data);
     }
 
@@ -216,7 +210,7 @@ contract RMRKNestableFacet is Modifiers {
         uint256 childId,
         bool isPending,
         bytes memory data
-    ) internal  {
+    ) internal {
         Child memory child;
         if (isPending) {
             child = pendingChildOf(tokenId, childIndex);
@@ -292,7 +286,7 @@ contract RMRKNestableFacet is Modifiers {
      * @param parentId ID of the parent token for which to retrieve the active child tokens
      * @return struct[] An array of Child structs containing the parent token's active child tokens
      */
-    function childrenOf(uint256 parentId) public view  returns (Child[] memory) {
+    function childrenOf(uint256 parentId) public view returns (Child[] memory) {
         Child[] memory children = s._activeChildren[parentId];
         return children;
     }
@@ -310,7 +304,7 @@ contract RMRKNestableFacet is Modifiers {
      * @param index Index of the child token in the parent token's active child tokens array
      * @return struct A Child struct containing data about the specified child
      */
-    function childOf(uint256 parentId, uint256 index) public view  returns (Child memory) {
+    function childOf(uint256 parentId, uint256 index) public view returns (Child memory) {
         if (childrenOf(parentId).length <= index) revert RMRKChildIndexOutOfRange();
         Child memory child = s._activeChildren[parentId][index];
         return child;
@@ -341,7 +335,7 @@ contract RMRKNestableFacet is Modifiers {
      * @return bool A boolean value signifying whether the given child token is included in an active child tokens array
      *  of a token (`true`) or not (`false`)
      */
-    function childIsInActive(address childAddress, uint256 childId) public view  returns (bool) {
+    function childIsInActive(address childAddress, uint256 childId) public view returns (bool) {
         return s._childIsInActive[childAddress][childId] != 0;
     }
 
@@ -362,7 +356,7 @@ contract RMRKNestableFacet is Modifiers {
      *  pending children array
      * @param data Additional data with no specified format
      */
-    function _beforeAddChild(uint256 tokenId, address childAddress, uint256 childId, bytes memory data) internal  {}
+    function _beforeAddChild(uint256 tokenId, address childAddress, uint256 childId, bytes memory data) internal {}
 
     /**
      * @notice Hook that is called after a child is added to the pending tokens array of a given token.
@@ -379,7 +373,7 @@ contract RMRKNestableFacet is Modifiers {
      *  pending children array
      * @param data Additional data with no specified format
      */
-    function _afterAddChild(uint256 tokenId, address childAddress, uint256 childId, bytes memory data) internal  {}
+    function _afterAddChild(uint256 tokenId, address childAddress, uint256 childId, bytes memory data) internal {}
 
     /**
      * @notice Hook that is called before a child is accepted to the active tokens array of a given token.
@@ -396,7 +390,7 @@ contract RMRKNestableFacet is Modifiers {
      * @param childId ID of the child token expected to be located at the specified index of the given parent token's
      *  pending children array
      */
-    function _beforeAcceptChild(uint256 parentId, uint256 childIndex, address childAddress, uint256 childId) internal  {}
+    function _beforeAcceptChild(uint256 parentId, uint256 childIndex, address childAddress, uint256 childId) internal {}
 
     /**
      * @notice Hook that is called after a child is accepted to the active tokens array of a given token.
@@ -413,7 +407,7 @@ contract RMRKNestableFacet is Modifiers {
      * @param childId ID of the child token that was expected to be located at the specified index of the given parent
      *  token's pending children array
      */
-    function _afterAcceptChild(uint256 parentId, uint256 childIndex, address childAddress, uint256 childId) internal  {}
+    function _afterAcceptChild(uint256 parentId, uint256 childIndex, address childAddress, uint256 childId) internal {}
 
     /**
      * @notice Hook that is called before a child is transferred from a given child token array of a given token.
@@ -440,7 +434,7 @@ contract RMRKNestableFacet is Modifiers {
         uint256 childId,
         bool isPending,
         bytes memory data
-    ) internal  {}
+    ) internal {}
 
     /**
      * @notice Hook that is called after a child is transferred from a given child token array of a given token.
@@ -467,7 +461,7 @@ contract RMRKNestableFacet is Modifiers {
         uint256 childId,
         bool isPending,
         bytes memory data
-    ) internal  {}
+    ) internal {}
 
     // HELPERS
 

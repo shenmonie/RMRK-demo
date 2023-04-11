@@ -115,7 +115,7 @@ async function deployDiamond() {
   receipt = await tx.wait()
   if (!receipt.status) {
     throw Error(`Diamond upgrade failed: ${tx.hash}`)
-  }  
+  }
   console.log('deployed collection metadata facet')
 
   // deploying RMRK mint & burn facet
@@ -129,7 +129,7 @@ async function deployDiamond() {
   await mintAndBurnInit.deployed()
 
   const mintAndBurnFacetSelectors = getSelectors(mintAndBurnFacet)
-  const pricePerMint = ethers.utils.parseUnits("0.01","ether");
+  const pricePerMint = ethers.utils.parseUnits("0.01", "ether");
   let mintAndBurnCalldata = mintAndBurnInit.interface.encodeFunctionData('init', [16, pricePerMint])
   tx = await diamondCutFacet.diamondCut(
     [{
@@ -141,7 +141,7 @@ async function deployDiamond() {
   receipt = await tx.wait()
   if (!receipt.status) {
     throw Error(`Diamond upgrade failed: ${tx.hash}`)
-  }  
+  }
   console.log('deployed RMRK mint & burn facet')
 
   // deploy RMRK nestable facet
@@ -161,7 +161,7 @@ async function deployDiamond() {
   receipt = await tx.wait()
   if (!receipt.status) {
     throw Error(`Diamond upgrade failed: ${tx.hash}`)
-  }  
+  }
   console.log('deployed RMRK nestable facet!')
 
   // deploy RMRK transfer facet
@@ -181,7 +181,7 @@ async function deployDiamond() {
   receipt = await tx.wait()
   if (!receipt.status) {
     throw Error(`Diamond upgrade failed: ${tx.hash}`)
-  }  
+  }
   console.log('deployed RMRK transfer facet!')
 
   // deploy Royalty info facet
@@ -206,7 +206,7 @@ async function deployDiamond() {
   receipt = await tx.wait()
   if (!receipt.status) {
     throw Error(`Diamond upgrade failed: ${tx.hash}`)
-  }  
+  }
   console.log('deployed RMRK royalty info facet!')
 
 
