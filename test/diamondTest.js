@@ -32,7 +32,7 @@ describe('DiamondTest', async function () {
   let royaltyInfoFacet
   let mintAndBurnFacet
   let rmrkNestableFacet
-  
+
   // libraries
   let libERC721
   let libRMRKNestable
@@ -66,11 +66,19 @@ describe('DiamondTest', async function () {
     royaltyInfoFacet = await ethers.getContractAt('RoyaltyInfoFacet', diamondAddress)
     mintAndBurnFacet = await ethers.getContractAt('RMRKMintAndBurnFacet', diamondAddress)
     rmrkNestableFacet = await ethers.getContractAt('RMRKNestableFacet', diamondAddress)
+    weatherFacet = await ethers.getContractAt('WeatherFacet', diamondAddress)
 
     libERC721 = await ethers.getContractFactory('LibERC721')
     libRMRKNestable = await ethers.getContractFactory('LibNestable')
 
     provider = waffle.provider
+  })
+
+  it('should have weather api -- call to facetAddresses function', async () => {
+    let weather = await weatherFacet.requestCurrentConditions("0x3065663665363038383065323463623639636239396131636164373666313561", 1, 14390, "metric", 0)
+
+    console.log(weather)
+    assert.equal(weather, 1)
   })
 
   it('should have nine facets -- call to facetAddresses function', async () => {
@@ -136,7 +144,7 @@ describe('DiamondTest', async function () {
     const accounts = await ethers.getSigners()
     const contractOwner = accounts[0]
     const contractOwnerAddress = await contractOwner.getAddress()
-    
+
     assert.equal(royaltyReceipient, contractOwnerAddress)
     assert.equal(royaltyPercentage, 2)
   })
@@ -146,14 +154,14 @@ describe('DiamondTest', async function () {
     const accounts = await ethers.getSigners()
     const contractOwner = accounts[0]
     const contractOwnerAddress = await contractOwner.getAddress()
-    const payValue = ethers.utils.parseUnits("0.001","ether")
-    await expect(mintAndBurnFacet.mint(contractOwnerAddress, {value: payValue})).to.be.revertedWith('RMRKMintUnderpriced')
+    const payValue = ethers.utils.parseUnits("0.001", "ether")
+    await expect(mintAndBurnFacet.mint(contractOwnerAddress, { value: payValue })).to.be.revertedWith('RMRKMintUnderpriced')
   })
 
   // mint a new nestable NFT - should not mint to zero address
   it('should not mint to zero address', async () => {
-    const payValue = ethers.utils.parseUnits("0.01","ether")
-    await expect(mintAndBurnFacet.mint(ethers.constants.AddressZero, {value: payValue})).to.be.revertedWith('ERC721MintToTheZeroAddress')
+    const payValue = ethers.utils.parseUnits("0.01", "ether")
+    await expect(mintAndBurnFacet.mint(ethers.constants.AddressZero, { value: payValue })).to.be.revertedWith('ERC721MintToTheZeroAddress')
   })
 
   // mint a new nestable NFT - should success
@@ -161,9 +169,9 @@ describe('DiamondTest', async function () {
     const accounts = await ethers.getSigners()
     const contractOwner = accounts[0]
     const contractOwnerAddress = await contractOwner.getAddress()
-    const payValue = ethers.utils.parseUnits("0.01","ether")
+    const payValue = ethers.utils.parseUnits("0.01", "ether")
 
-    await expect(mintAndBurnFacet.mint(contractOwnerAddress, {value: payValue}))
+    await expect(mintAndBurnFacet.mint(contractOwnerAddress, { value: payValue }))
       .to.emit(libERC721.attach(mintAndBurnFacet.address), 'Transfer').withArgs(ethers.constants.AddressZero, contractOwnerAddress, 1)
       .to.emit(libRMRKNestable.attach(mintAndBurnFacet.address), 'NestTransfer').withArgs(ethers.constants.AddressZero, contractOwnerAddress, 0, 0, 1)
 
@@ -180,12 +188,12 @@ describe('DiamondTest', async function () {
     assert.equal(1, balance)
 
     // check get token uri by index
-    const {tokenId, tokenUri} = await rmrkNestableFacet.getOwnerCollectionByIndex(contractOwnerAddress, 0)
+    const { tokenId, tokenUri } = await rmrkNestableFacet.getOwnerCollectionByIndex(contractOwnerAddress, 0)
     assert.equal(1, tokenId)
     assert.equal("https://project-oracle-test.mypinata.cloud/ipfs/QmWUhDtzYcyqovbkefa2oR19fnB4MTk2AC8W6xkY1EBoRv/1", tokenUri)
   })
 
-  it('should successfully register gallery ticket and try to add it into main NFT collection', async() => {
+  it('should successfully register gallery ticket and try to add it into main NFT collection', async () => {
     // 1. try to deploy Gallery event ticket
     const pricePerMint = ethers.utils.parseEther('0.001');
     // Define the constructor arguments
@@ -205,8 +213,8 @@ describe('DiamondTest', async function () {
     await authenticateSCManager.register(gallertEventTicket.address, 1)
 
     // 3. try to add this ticket as a child NFT into main NFT's collection
-    const payValue = ethers.utils.parseUnits("0.001","ether")
-    await expect(gallertEventTicket.nestMint(diamondAddress, 1, 1, {value: payValue}))
+    const payValue = ethers.utils.parseUnits("0.001", "ether")
+    await expect(gallertEventTicket.nestMint(diamondAddress, 1, 1, { value: payValue }))
       .to.emit(libRMRKNestable.attach(diamondAddress), 'ChildAccepted')
       .withArgs(1, 0, gallertEventTicket.address, 1);
 
@@ -224,10 +232,10 @@ describe('DiamondTest', async function () {
 
     // 6. try to add one more, it should go to the pending child array, emitting `ChildProposed` event
     console.log('try adding one more NFT, should be in pending children queue')
-    await expect(gallertEventTicket.nestMint(diamondAddress, 1, 1, {value: payValue}))
+    await expect(gallertEventTicket.nestMint(diamondAddress, 1, 1, { value: payValue }))
       .to.emit(libRMRKNestable.attach(diamondAddress), 'ChildProposed')
       .withArgs(1, 0, gallertEventTicket.address, 2);
-    
+
     // 7. check pending child NFTs
     console.log('checking pending children queue...')
     const pendingChildren = await rmrkNestableFacet.pendingChildrenOf(1)
@@ -237,36 +245,36 @@ describe('DiamondTest', async function () {
   })
 
   it('should directly be added into pending children for not authenticated NFT', async () => {
-      // 1. try to deploy Gallery event ticket
-      const pricePerMint = ethers.utils.parseEther('0.001');
-      // Define the constructor arguments
-      const initData = {
-        erc20TokenAddress: "0x0000000000000000000000000000000000001010",
-        tokenUriIsEnumerable: false,
-        royaltyRecipient: "0xA0AFCFD57573C211690aA8c43BeFDfC082680D58",
-        royaltyPercentageBps: 2,
-        maxSupply: 8,
-        pricePerMint: pricePerMint
-      };
-      const ConcertEventTicket = await ethers.getContractFactory('ConcertEventTicket')
-      const concertEventTicket = await ConcertEventTicket.deploy(initData)
-      await concertEventTicket.deployed()
+    // 1. try to deploy Gallery event ticket
+    const pricePerMint = ethers.utils.parseEther('0.001');
+    // Define the constructor arguments
+    const initData = {
+      erc20TokenAddress: "0x0000000000000000000000000000000000001010",
+      tokenUriIsEnumerable: false,
+      royaltyRecipient: "0xA0AFCFD57573C211690aA8c43BeFDfC082680D58",
+      royaltyPercentageBps: 2,
+      maxSupply: 8,
+      pricePerMint: pricePerMint
+    };
+    const ConcertEventTicket = await ethers.getContractFactory('ConcertEventTicket')
+    const concertEventTicket = await ConcertEventTicket.deploy(initData)
+    await concertEventTicket.deployed()
 
-      const payValue = ethers.utils.parseUnits("0.001","ether")
-      // we have minted a pending child before, so the initial length of this event should be 1
-      await expect(concertEventTicket.nestMint(diamondAddress, 1, 1, {value: payValue}))
-        .to.emit(libRMRKNestable.attach(diamondAddress), 'ChildProposed')
-        .withArgs(1, 1, concertEventTicket.address, 1);
-      
-      
-      const pendingChildren = await rmrkNestableFacet.pendingChildrenOf(1)
-      assert.equal(pendingChildren.length, 2)
-      assert.equal(pendingChildren[1].contractAddress, concertEventTicket.address)
-      assert.equal(pendingChildren[1].tokenId, 1)
+    const payValue = ethers.utils.parseUnits("0.001", "ether")
+    // we have minted a pending child before, so the initial length of this event should be 1
+    await expect(concertEventTicket.nestMint(diamondAddress, 1, 1, { value: payValue }))
+      .to.emit(libRMRKNestable.attach(diamondAddress), 'ChildProposed')
+      .withArgs(1, 1, concertEventTicket.address, 1);
 
-      // query the newly minted tokenUri
-      const tokenUri = await concertEventTicket.tokenURI(pendingChildren[1].tokenId)
-      assert.equal(tokenUri, 'https://project-oracle-test.mypinata.cloud/ipfs/bafkreigby7f6vpmu6zyosdgmaagkdzx2gocuiqhphgbvbdnuz7qtsamena')
+
+    const pendingChildren = await rmrkNestableFacet.pendingChildrenOf(1)
+    assert.equal(pendingChildren.length, 2)
+    assert.equal(pendingChildren[1].contractAddress, concertEventTicket.address)
+    assert.equal(pendingChildren[1].tokenId, 1)
+
+    // query the newly minted tokenUri
+    const tokenUri = await concertEventTicket.tokenURI(pendingChildren[1].tokenId)
+    assert.equal(tokenUri, 'https://project-oracle-test.mypinata.cloud/ipfs/bafkreigby7f6vpmu6zyosdgmaagkdzx2gocuiqhphgbvbdnuz7qtsamena')
   })
 
 })

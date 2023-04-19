@@ -15,8 +15,6 @@ import {LibOwnership} from "../libs/LibOwnership.sol";
 import {LibMeta} from "../../shared/LibMeta.sol";
 import {LibQuery} from "../libs/LibQuery.sol";
 import "../../shared/RMRKErrors.sol";
-import {LibNestable} from "../libs/LibNestable.sol";
-import {LibOwnership} from "../libs/LibOwnership.sol";
 
 /**
  * @title RMRKNestable
@@ -54,7 +52,6 @@ contract RMRKNestableFacet is Modifiers {
     function ownerOf(uint256 tokenId) public view returns (address) {
         return LibOwnership.ownerOf(tokenId);
     }
-
 
     ////////////////////////////////////////
     //      CHILD MANAGEMENT PUBLIC
@@ -272,10 +269,11 @@ contract RMRKNestableFacet is Modifiers {
      * @param parentId ID of the parent token for which to retrieve the pending child tokens
      * @return struct[] An array of Child structs containing the parent token's pending child tokens
      */
-    function pendingChildrenOf(uint256 parentId) public view  returns (Child[] memory) {
+    function pendingChildrenOf(uint256 parentId) public view returns (Child[] memory) {
         return LibNestable.pendingChildrenOf(parentId);
     }
-     /**
+
+    /**
      * @notice Used to retrieve the active child tokens of a given parent token.
      * @dev Returns array of Child structs existing for parent token.
      * @dev The Child struct consists of the following values:
@@ -290,7 +288,6 @@ contract RMRKNestableFacet is Modifiers {
         Child[] memory children = s._activeChildren[parentId];
         return children;
     }
-
 
     /**
      * @notice Used to retrieve a specific active child token for a given parent token.
@@ -322,7 +319,7 @@ contract RMRKNestableFacet is Modifiers {
      * @param index Index of the child token in the parent token's pending child tokens array
      * @return struct A Child struct containting data about the specified child
      */
-    function pendingChildOf(uint256 parentId, uint256 index) public view  returns (Child memory) {
+    function pendingChildOf(uint256 parentId, uint256 index) public view returns (Child memory) {
         if (LibNestable.pendingChildrenOf(parentId).length <= index) revert RMRKPendingChildIndexOutOfRange();
         Child memory child = s._pendingChildren[parentId][index];
         return child;

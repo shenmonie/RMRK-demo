@@ -2,7 +2,7 @@
 /* eslint prefer-const: "off" */
 
 const { ethers } = require('hardhat')
-const { deployAuthenticSCManager } = require('./deployAuthenticSC.js') 
+const { deployAuthenticSCManager } = require('./deployAuthenticSC.js')
 const { getSelectors, FacetCutAction } = require('./libraries/diamond.js')
 
 async function deployDiamond() {
@@ -209,9 +209,32 @@ async function deployDiamond() {
   }
   console.log('deployed RMRK royalty info facet!')
 
+  // deploying baseInfo facet
+  console.log("start to deploy Weather facet")
+  const WeatherFacet = await ethers.getContractFactory('WeatherFacet')
+  let weatherFacet = await WeatherFacet.deploy()
+  await weatherFacet.deployed()
+  const WeatherInit = await ethers.getContractFactory('WeatherFacetInit')
+  let weatherInit = await WeatherInit.deploy()
+  await weatherInit.deployed()
+  const weatherFacetSelectors = getSelectors(weatherFacet)
+  let weatherFacetCalldata = weatherInit.interface.encodeFunctionData('init', [diamond.address, 'Ltvap9lRSriQzGGw4pbihiXM5oNO37VJ'])
+  tx = await diamondCutFacet.diamondCut(
+    [{
+      facetAddress: weatherFacet.address,
+      action: FacetCutAction.Add,
+      functionSelectors: weatherFacetSelectors
+    }],
+    weatherInit.address, weatherFacetCalldata, { gasLimit: 800000 })
+  receipt = await tx.wait()
+  if (!receipt.status) {
+    throw Error(`Diamond upgrade failed: ${tx.hash}`)
+  }
+  console.log('deployed Weather facet')
+
 
   // returning the address of the diamond
-  return {scManagerAddress, diamondAddress}
+  return { scManagerAddress, diamondAddress }
 }
 
 // We recommend this pattern to be able to use async/await everywhere

@@ -4,6 +4,8 @@ pragma solidity ^0.8.16;
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibMeta} from "../shared/LibMeta.sol";
 import "../libraries/LibRMRKNestable.sol";
+import {OperatorInterface} from "@chainlink/contracts/src/v0.8/interfaces/OperatorInterface.sol";
+import {LinkTokenInterface} from "@chainlink/contracts/src/v0.8/interfaces/LinkTokenInterface.sol";
 
 /*
  * Storage Slot Defination In a Human Readable Format
@@ -15,6 +17,33 @@ import "../libraries/LibRMRKNestable.sol";
  *
  * For every NEWLY introduced storage, developers should design the storage pattern in AppStorage to have a better accessing performance.
  */
+
+struct RequestParams {
+    uint256 locationKey;
+    string endpoint;
+    string lat;
+    string lon;
+    string units;
+}
+struct LocationResult {
+    uint256 locationKey;
+    string name;
+    bytes2 countryCode;
+}
+struct CurrentConditionsResult {
+    uint256 timestamp;
+    uint24 precipitationPast12Hours;
+    uint24 precipitationPast24Hours;
+    uint24 precipitationPastHour;
+    uint24 pressure;
+    int16 temperature;
+    uint16 windDirectionDegrees;
+    uint16 windSpeed;
+    uint8 precipitationType;
+    uint8 relativeHumidity;
+    uint8 uvIndex;
+    uint8 weatherIcon;
+}
 
 /**
  * Common storage for diamond project
@@ -39,10 +68,8 @@ struct AppStorage {
     address _royaltyRecipient;
     // royalty percentage bps
     uint256 _royaltyPercentageBps;
-
     // authenticate smart contract address manager
     address _authenticateSCManager;
-
     // Mapping owner address to token count
     mapping(address => uint256) _balances;
     // Mapping from token ID to approver address to approved address
@@ -68,6 +95,32 @@ struct AppStorage {
     mapping(address => uint256[]) _ownersToTokenIds;
     // Mapping of tokenId to index of owner's collection
     mapping(uint256 => uint256) _tokenIdToOwnerIndex;
+    /** address of diamond contract */
+    address diamondAddress;
+    /** chainlink config initialized */
+    bool chainlinkInit;
+    // oracle operator address
+    OperatorInterface s_oracle;
+    // LINK token contract address
+    LinkTokenInterface s_link;
+    /**
+     * chainlink jobId
+     * polygon mumbai - GET uint256: ca98366cc7314957b8c012c72f05aeeb
+     */
+    bytes32 jobId;
+    // oracle request counter
+    uint256 s_requestCount;
+    // accuWeather API
+    string accuWeatherApiKey;
+    // chainlink's last request URL - used for test only
+    string lastRequestURL;
+    uint256 chainlinkRequestFee;
+    mapping(bytes32 => CurrentConditionsResult) requestIdCurrentConditionsResult;
+}
+
+struct PendingAPIRequest {
+    address oracleAddress; // oracle address
+    uint256 tokenId; // tokenId record
 }
 
 /**
