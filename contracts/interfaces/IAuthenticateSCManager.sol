@@ -8,7 +8,7 @@ interface IAuthenticateSCManager {
     /// @param contractAddress        the to-authenticate smart contract address
     /// @param maxActiveNum           maximal number of NFT from the same contract address can be added into `_activeChildren`  
     /// 
-    function register(address contractAddress, uint256 maxActiveNum) external;
+    function registerAuthentic(address contractAddress, uint256 maxActiveNum) external;
     
     /// @notice    used for check if given contract address is authenticated to be directly added into `_activeChildren`
     /// @notice    when this contract address is not authenticated, the `maxActiveNum` returns 0
@@ -22,5 +22,23 @@ interface IAuthenticateSCManager {
     /// @notice only the contract owner can call this method
     /// @param contractAddress        the de-authenticate smart contract address
     /// 
-    function remove(address contractAddress) external;
+    function removeAuthenticate(address contractAddress) external;
+
+    /// @notice used for register whitelist smart contract address
+    /// @notice only the contract owner can call this method
+    /// @param contractAddress        the to-whitelisted smart contract address
+    /// 
+    function registerWhitelist(address contractAddress) external;
+
+    /// @notice    used for check if given contract address is whitelisted to be added into `_pendingChildren`
+    /// @param     contractAddress        the to-authenticate smart contract address
+    /// @return    authentic              check if the contract address has been registered
+    /// 
+    function whitelisted(address contractAddress) external view returns (bool authentic);
+
+    /// @notice used for remove whitelist smart contract address
+    /// @notice only the contract owner can call this method
+    /// @param contractAddress        the to-removed-whitelisted smart contract address
+    /// 
+    function removeWhitelist(address contractAddress) external;
 }

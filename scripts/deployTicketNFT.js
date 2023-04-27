@@ -38,7 +38,7 @@ async function deployTicketNFT() {
 }
 
 if (require.main === module) {
-    deployDiamond()
+    deployTicketNFT()
       .then(() => process.exit(0))
       .catch(error => {
         console.error(error)

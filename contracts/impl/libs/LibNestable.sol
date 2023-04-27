@@ -98,6 +98,10 @@ library LibNestable {
         return (authentic, maxActiveNum);
     }
 
+    function _whitelisted(address childNFTAddress) internal view returns (bool) {
+        
+    }
+
     /**
      * @notice used to append child NFT to main NFT
      * @param   childNFTAddress     child NFT original smart contract address
@@ -106,6 +110,7 @@ library LibNestable {
      */
     function appendChild(address childNFTAddress, uint256 parentId, uint256 childId) internal {        
         (bool authentic, uint256 maxActiveNum) = _authenticated(childNFTAddress);
+        bool whitelisted = 
         Child memory child = Child({contractAddress: childNFTAddress, tokenId: childId});
 
         // check if current child NFT address is authenticated
