@@ -2,7 +2,7 @@
 /* eslint prefer-const: "off" */
 
 const { ethers } = require('hardhat')
-const { deployAuthenticSCManager } = require('./deployAuthenticSC.js') 
+const { deployAuthenticSCManager } = require('./deployAuthenticSC.js')
 const { getSelectors, FacetCutAction } = require('./libraries/diamond.js')
 
 async function deployDiamond() {
@@ -209,9 +209,33 @@ async function deployDiamond() {
   }
   console.log('deployed RMRK royalty info facet!')
 
+  console.log("start to deploy Countdown facet")
+  const CountdownFacet = await ethers.getContractFactory('CountdownFacet')
+  let countdownFacet = await CountdownFacet.deploy()
+  await countdownFacet.deployed()
+
+  const CountdownFacetInit = await ethers.getContractFactory('CountdownFacetInit')
+  let countdownFacetInit = await CountdownFacetInit.deploy()
+  await countdownFacetInit.deployed()
+
+  const countdownFacetSelectors = getSelectors(countdownFacet)
+  let countdownFacetCalldata = countdownFacetInit.interface.encodeFunctionData('init', ['', '', 99999999])
+  tx = await diamondCutFacet.diamondCut(
+    [{
+      facetAddress: countdownFacet.address,
+      action: FacetCutAction.Add,
+      functionSelectors: countdownFacetSelectors
+    }],
+    countdownFacetInit.address, countdownFacetCalldata, { gasLimit: 800000 })
+  receipt = await tx.wait()
+  if (!receipt.status) {
+    throw Error(`Diamond upgrade failed: ${tx.hash}`)
+  }
+  console.log('deployed countdown facet')
+
 
   // returning the address of the diamond
-  return {scManagerAddress, diamondAddress}
+  return { scManagerAddress, diamondAddress }
 }
 
 // We recommend this pattern to be able to use async/await everywhere

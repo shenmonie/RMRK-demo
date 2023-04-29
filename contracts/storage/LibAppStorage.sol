@@ -39,10 +39,8 @@ struct AppStorage {
     address _royaltyRecipient;
     // royalty percentage bps
     uint256 _royaltyPercentageBps;
-
     // authenticate smart contract address manager
     address _authenticateSCManager;
-
     // Mapping owner address to token count
     mapping(address => uint256) _balances;
     // Mapping from token ID to approver address to approved address
@@ -51,6 +49,16 @@ struct AppStorage {
     mapping(uint256 => mapping(address => address)) _tokenApprovals;
     // Mapping from owner to operator approvals
     mapping(address => mapping(address => bool)) _operatorApprovals;
+    // tokenURI prefix for valid NFTs
+    string _validTokenURIPrefix;
+    // tokenURI prefix for valid NFTs
+    string _invalidTokenURIPrefix;
+    // default countdown time for NFTs
+    uint256 _defaultCountdownTime;
+    // creation time for the token
+    mapping(uint256 => uint256) _tokenCreateTime;
+    // validity period of the token
+    mapping(uint256 => uint256) _tokenValidTime;
     // ------------------- NESTABLE --------------
 
     // Mapping from token ID to DirectOwner struct

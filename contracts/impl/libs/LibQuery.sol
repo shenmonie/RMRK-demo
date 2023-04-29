@@ -2,11 +2,11 @@
 
 pragma solidity ^0.8.16;
 
-import { LibAppStorage, AppStorage } from "../../storage/LibAppStorage.sol";
+import {LibAppStorage, AppStorage} from "../../storage/LibAppStorage.sol";
+import {LibCountdown} from "./LibCountdown.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
 library LibQuery {
-
     using Strings for uint256;
 
     /**
@@ -14,11 +14,7 @@ library LibQuery {
      * @param tokenId ID of the token to retrieve the metadata URI for
      * @return Metadata URI of the specified token
      */
-    function tokenURI(
-        uint256 tokenId
-    ) internal view returns (string memory) {
-        AppStorage storage s = LibAppStorage.diamondStorage();
-        return
-            string(abi.encodePacked(s._tokenURI, tokenId.toString()));
+    function tokenURI(uint256 tokenId) internal view returns (string memory) {
+        return string(abi.encodePacked(LibCountdown.getTokenURIPrefix(tokenId), tokenId.toString()));
     }
 }

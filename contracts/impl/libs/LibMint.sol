@@ -3,22 +3,21 @@
 //Generally all interactions should propagate downstream
 
 pragma solidity ^0.8.16;
-import { LibAppStorage, AppStorage } from "../../storage/LibAppStorage.sol";
-import { RMRKMintOverMax, RMRKMintUnderpriced, ERC721TransferToNonReceiverImplementer, ERC721MintToTheZeroAddress, ERC721TokenAlreadyMinted, RMRKIdZeroForbidden } from "../../shared/RMRKErrors.sol";
-import { LibMeta } from "../../shared/LibMeta.sol";
-import { LibERC721 } from "../../libraries/LibERC721.sol";
-import { LibNestable } from "./LibNestable.sol";
-import { LibOwnership } from "./LibOwnership.sol";
+import {LibAppStorage, AppStorage} from "../../storage/LibAppStorage.sol";
+import {RMRKMintOverMax, RMRKMintUnderpriced, ERC721TransferToNonReceiverImplementer, ERC721MintToTheZeroAddress, ERC721TokenAlreadyMinted, RMRKIdZeroForbidden} from "../../shared/RMRKErrors.sol";
+import {LibMeta} from "../../shared/LibMeta.sol";
+import {LibERC721} from "../../libraries/LibERC721.sol";
+import {LibNestable} from "./LibNestable.sol";
+import {LibOwnership} from "./LibOwnership.sol";
 
 library LibMint {
-
     /**
      * @notice Used for checking if current minting process can continue
      * @dev requirements:
      *
      * - the `_totalSupply` should not transcend `_maxSupply` after the new token is generated
      * - `msgValue` should be greater or equal to `_pricePerMint`
-     * 
+     *
      * @param   to           target address
      * @return  nextToken    next id for this newly minted token
      */
@@ -44,15 +43,10 @@ library LibMint {
      * @param tokenId   ID of the token to mint
      * @param data      Additional data to send with the tokens
      */
-    function safeMint(
-        address to,
-        uint256 tokenId,
-        bytes memory data
-    ) internal {
-        _mint(to, tokenId, data);
+    function safeMint(address to, uint256 tokenId, bytes memory data, uint256 validTime) internal {
+        _mint(to, tokenId, data, validTime);
 
-        if (!LibERC721._checkOnERC721Received(address(0), to, tokenId, data))
-            revert ERC721TransferToNonReceiverImplementer();
+        if (!LibERC721._checkOnERC721Received(address(0), to, tokenId, data)) revert ERC721TransferToNonReceiverImplementer();
     }
 
     /**
@@ -68,11 +62,7 @@ library LibMint {
      * @param tokenId ID of the token to mint
      * @param data Additional data with no specified format, sent in call to `to`
      */
-    function _mint(
-        address to,
-        uint256 tokenId,
-        bytes memory data
-    ) internal {
+    function _mint(address to, uint256 tokenId, bytes memory data, uint256 validTime) internal {
         if (to == address(0)) revert ERC721MintToTheZeroAddress();
         if (LibNestable._exists(tokenId)) revert ERC721TokenAlreadyMinted();
         if (tokenId == 0) revert RMRKIdZeroForbidden();
@@ -82,6 +72,9 @@ library LibMint {
         s.owner[tokenId] = to;
 
         LibOwnership.confirmOwnership(to, tokenId);
+
+        s._tokenCreateTime[tokenId] = block.timestamp;
+        s._tokenValidTime[tokenId] = validTime;
 
         emit LibERC721.Transfer(address(0), to, tokenId);
         emit LibNestable.NestTransfer(address(0), to, 0, 0, tokenId);
