@@ -23,7 +23,6 @@ async function deployDiamond() {
   console.log('DiamondInit deployed:', diamondInit.address)
 
   // Deploy facets and set the `facetCuts` variable
-  console.log('')
   console.log('Deploying facets')
   const FacetNames = [
     'DiamondCutFacet',
@@ -129,7 +128,7 @@ async function deployDiamond() {
   await mintAndBurnInit.deployed()
 
   const mintAndBurnFacetSelectors = getSelectors(mintAndBurnFacet)
-  const pricePerMint = ethers.utils.parseUnits("0.01", "ether");
+  let pricePerMint = ethers.utils.parseUnits("0.01", "ether")
   let mintAndBurnCalldata = mintAndBurnInit.interface.encodeFunctionData('init', [16, pricePerMint])
   tx = await diamondCutFacet.diamondCut(
     [{
@@ -228,6 +227,50 @@ async function deployDiamond() {
     throw Error(`Diamond upgrade failed: ${tx.hash}`)
   }
   console.log('deployed whitelist facet!')
+
+  let subNFTPricePerMint = ethers.utils.parseEther('0.001');
+  // Define the constructor arguments
+  const initData = {
+    erc20TokenAddress: "0x0000000000000000000000000000000000001010",
+    tokenUriIsEnumerable: false,
+    royaltyRecipient: "0xA0AFCFD57573C211690aA8c43BeFDfC082680D58",
+    royaltyPercentageBps: 2,
+    maxSupply: 8,
+    pricePerMint: subNFTPricePerMint
+  };
+
+  // Deploy the contract
+  const GalleryEventTicket = await ethers.getContractFactory("GalleryEventTicket");
+  const galleryEventTicket = await GalleryEventTicket.deploy(
+    initData
+  );
+
+  await galleryEventTicket.deployed();
+
+  console.log(`gallery ticket contract deployed to: ${galleryEventTicket.address}`);
+
+  const ConcertEventTicket = await ethers.getContractFactory("ConcertEventTicket");
+  const concertEventTicket = await ConcertEventTicket.deploy(
+    initData
+  );
+  await concertEventTicket.deployed();
+
+  console.log(`concert ticket contract deployed to: ${concertEventTicket.address}`);
+
+  const ButcheryGoodsNFT = await ethers.getContractFactory("ButcheryGoods");
+  
+  const butcheryPricePerMint = ethers.utils.parseUnits("0", "ether")
+  const butcheryInitData = {
+    erc20TokenAddress: "0x0000000000000000000000000000000000001010",
+    tokenUriIsEnumerable: false,
+    royaltyRecipient: "0xA0AFCFD57573C211690aA8c43BeFDfC082680D58",
+    royaltyPercentageBps: 2,
+    maxSupply: 8,
+    pricePerMint: butcheryPricePerMint
+  };
+  const butcheryGoods = await ButcheryGoodsNFT.deploy(scManagerAddress, butcheryInitData)
+
+  console.log(`butchery goods contract deployed to: ${butcheryGoods.address}`);
 
   // returning the address of the diamond
   return {scManagerAddress, diamondAddress}

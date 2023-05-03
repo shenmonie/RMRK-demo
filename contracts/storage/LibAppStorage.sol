@@ -2,8 +2,15 @@
 pragma solidity ^0.8.16;
 
 import {LibDiamond} from "../libraries/LibDiamond.sol";
-import { LibMeta } from "../shared/LibMeta.sol";
+import {LibMeta} from "../shared/LibMeta.sol";
 import "../libraries/LibRMRKNestable.sol";
+
+struct Whitelist {
+    address owner;
+    string name;
+    address[] addresses;
+}
+
 
 /*
  * Storage Slot Defination In a Human Readable Format
@@ -20,34 +27,28 @@ import "../libraries/LibRMRKNestable.sol";
  * Common storage for diamond project
  */
 struct AppStorage {
-
     // base info
     /// Token name
     string _name;
-
     /// Token symbol
     string _symbol;
-
     // collection meta
     string _collectionMeta;
-
     // token URI
     string _tokenURI;
-
     // price per mint
     uint256 _pricePerMint;
-
     // max supply
     uint256 _maxSupply;
-
     // current num of minted token
     uint256 _totalSupply;
-
     // royalty receipient address
     address _royaltyRecipient;
-
     // royalty percentage bps
     uint256 _royaltyPercentageBps;
+
+    // authenticate smart contract address manager
+    address _authenticateSCManager;
 
     // Mapping owner address to token count
     mapping(address => uint256) _balances;
@@ -63,6 +64,7 @@ struct AppStorage {
     mapping(uint256 => address) owner;
     // Mapping of tokenId to array of active children structs
     mapping(uint256 => Child[]) _activeChildren;
+    mapping(uint256 => mapping(address => uint256)) _activeChildrenAddressCount;
     // Mapping of tokenId to array of pending children structs
     mapping(uint256 => Child[]) _pendingChildren;
     // Mapping of child token address to child token ID to whether they are pending or active on any token
@@ -71,6 +73,20 @@ struct AppStorage {
     mapping(address => mapping(uint256 => uint256)) _childIsInActive;
     // Mapping of owner address to all tokenIDs
     mapping(address => uint256[]) _ownersToTokenIds;
+    // Mapping of tokenId to index of owner's collection
+    mapping(uint256 => uint256) _tokenIdToOwnerIndex;
+
+    // ------------------- White list --------------
+    Whitelist[] whitelists;
+
+    // If zero, then the user is not whitelisted for the given whitelist ID. Otherwise, this represents the position of the user in the whitelist + 1
+    mapping(uint32 => mapping(address => uint256)) isWhitelisted;
+
+    // whitelistId => action right => access right
+    mapping(uint32 => mapping(uint256 => uint256)) whitelistAccessRights;
+
+    // Nain MainNFT minting whitelist id
+    uint32 mainNFTMintWhitelistId;
 }
 
 /**
@@ -99,7 +115,7 @@ contract Modifiers {
         LibDiamond.enforceIsContractOwner();
         _;
     }
-    
+
     /**
      * Decoration: should check if the current operator is the owner of the token or is approved to operate the token
      */
