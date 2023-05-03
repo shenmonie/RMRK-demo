@@ -24,6 +24,14 @@ library LibMint {
      */
     function beforeMint(address to) internal returns (uint256) {
         AppStorage storage s = LibAppStorage.diamondStorage();
+        
+        // TODO: add start minting control
+
+        // 1. check if current address is in the whitelist
+        require(s.mainNFTMintWhitelistId > 0, "whitelist is not initialized");
+        require(s.isWhitelisted[1][to] > 0, "current address is not in whitelist");
+
+        // 2. check price and supply
         if (s._totalSupply == s._maxSupply) revert RMRKMintOverMax();
         if (LibMeta._msgValue() < s._pricePerMint) revert RMRKMintUnderpriced();
         uint256 nextToken = s._totalSupply + 1;

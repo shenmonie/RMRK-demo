@@ -86,7 +86,10 @@ contract RMRKNestableFacet is Modifiers {
      * @param   childAddress    child's belonging contract address
      * @param   childId         child's token id in its belonging contract
      */
-    function acceptChild(uint256 parentId, uint256 childIndex, address childAddress, uint256 childId) public onlyApprovedOrOwner(parentId) {
+    function acceptChild(uint256 parentId, uint256 childIndex, address childAddress, uint256 childId) public payable onlyApprovedOrOwner(parentId) {
+        // check the acccepting condition for this child NFT
+        LibNestable.checkAcceptingCondition(childAddress, childId, msg.value);
+        
         _acceptChild(parentId, childIndex, childAddress, childId);
     }
 
@@ -115,10 +118,7 @@ contract RMRKNestableFacet is Modifiers {
         // Remove from pending:
         _removeChildByIndex(s._pendingChildren[parentId], childIndex);
 
-        // Add to active:
-        s._activeChildren[parentId].push(child);
-        s._childIsInActive[childAddress][childId] = 1; // We use 1 as true
-        s._activeChildrenAddressCount[parentId][childAddress]++;
+        LibNestable.addToActiveChildren(child, parentId);
 
         emit LibNestable.ChildAccepted(parentId, childIndex, childAddress, childId);
 

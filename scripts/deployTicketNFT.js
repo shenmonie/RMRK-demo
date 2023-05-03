@@ -1,6 +1,6 @@
 const { ethers } = require("hardhat");
 
-async function deployTicketNFT() {
+async function deployTicketNFT(scManagerAddress) {
 
   const pricePerMint = ethers.utils.parseEther('0.001');
   // Define the constructor arguments
@@ -31,20 +31,36 @@ async function deployTicketNFT() {
 
   console.log(`concert ticket contract deployed to: ${concertEventTicket.address}`);
 
+  const ButcheryGoodsNFT = await ethers.getContractFactory("ButcheryGoods");
+  
+  const butcheryPricePerMint = ethers.utils.parseUnits("0", "ether")
+  const butcheryInitData = {
+    erc20TokenAddress: "0x0000000000000000000000000000000000001010",
+    tokenUriIsEnumerable: false,
+    royaltyRecipient: "0xA0AFCFD57573C211690aA8c43BeFDfC082680D58",
+    royaltyPercentageBps: 2,
+    maxSupply: 8,
+    pricePerMint: butcheryPricePerMint
+  };
+  const butcheryGoods = await ButcheryGoodsNFT.deploy(scManagerAddress, butcheryInitData)
+
+  console.log(`butchery goods contract deployed to: ${butcheryGoods.address}`);
+
   return {
     galleryEventTicket: galleryEventTicket.address,
-    concertEventTicket: concertEventTicket.address
+    concertEventTicket: concertEventTicket.address,
+    butcheryGoods: butcheryGoods.address,
   }
 }
 
-if (require.main === module) {
-    deployTicketNFT()
-      .then(() => process.exit(0))
-      .catch(error => {
-        console.error(error)
-        process.exit(1)
-      })
-  }
+// if (require.main === module) {
+//     deployTicketNFT()
+//       .then(() => process.exit(0))
+//       .catch(error => {
+//         console.error(error)
+//         process.exit(1)
+//       })
+//   }
 
 exports.deployTicketNFT = deployTicketNFT
 

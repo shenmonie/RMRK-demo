@@ -15,6 +15,15 @@ contract RMRKMintAndBurnFacet is Modifiers {
     ////////////////////////////////////////
     //              MINTING
     ////////////////////////////////////////
+
+    /// @notice used for initialize white list id
+    /// @dev only the owner of contract can initialize the whitelist id
+    /// @param  id  whitelist id
+    function initializeWhitelistId(uint256 id) public onlyOwner() {
+        require(s.mainNFTMintWhitelistId == 0, "whitelist id has been initialized!");
+        s.mainNFTMintWhitelistId = uint32(id);
+    }
+
     /**
      * @notice Used for minting a new NFT
      * 

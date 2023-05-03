@@ -5,6 +5,13 @@ import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibMeta} from "../shared/LibMeta.sol";
 import "../libraries/LibRMRKNestable.sol";
 
+struct Whitelist {
+    address owner;
+    string name;
+    address[] addresses;
+}
+
+
 /*
  * Storage Slot Defination In a Human Readable Format
  * For an upgradable smart contract,
@@ -68,6 +75,18 @@ struct AppStorage {
     mapping(address => uint256[]) _ownersToTokenIds;
     // Mapping of tokenId to index of owner's collection
     mapping(uint256 => uint256) _tokenIdToOwnerIndex;
+
+    // ------------------- White list --------------
+    Whitelist[] whitelists;
+
+    // If zero, then the user is not whitelisted for the given whitelist ID. Otherwise, this represents the position of the user in the whitelist + 1
+    mapping(uint32 => mapping(address => uint256)) isWhitelisted;
+
+    // whitelistId => action right => access right
+    mapping(uint32 => mapping(uint256 => uint256)) whitelistAccessRights;
+
+    // Nain MainNFT minting whitelist id
+    uint32 mainNFTMintWhitelistId;
 }
 
 /**

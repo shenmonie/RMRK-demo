@@ -4,6 +4,8 @@ pragma solidity ^0.8.16;
 
 import { LibAppStorage, AppStorage } from "../../storage/LibAppStorage.sol";
 import { IAuthenticateSCManager } from "../../interfaces/IAuthenticateSCManager.sol";
+import { IERC165 } from "../../interfaces/IERC165.sol";
+import { IAcceptExpirable } from "../../interfaces/IAcceptExpirable.sol";
 import "../../interfaces/IRMRKNestable.sol";
 import "../../shared/RMRKErrors.sol";
 
@@ -98,8 +100,15 @@ library LibNestable {
         return (authentic, maxActiveNum);
     }
 
+    /**
+     * @notice  used to check if current child NFT address is whitelisted so that can be append as child
+     * @param   childNFTAddress     child nft origin smart contract address
+     * @return  bool                true: the child NFT smart contract is whitelisted
+     */
     function _whitelisted(address childNFTAddress) internal view returns (bool) {
-        
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        address scManagerAddress = s._authenticateSCManager;
+        return IAuthenticateSCManager(scManagerAddress).whitelisted(childNFTAddress);
     }
 
     /**
@@ -109,8 +118,8 @@ library LibNestable {
      * @param   childId             id of the child id in its original smart contract
      */
     function appendChild(address childNFTAddress, uint256 parentId, uint256 childId) internal {        
+        require(_whitelisted(childNFTAddress), "child NFT address is not whitelisted");
         (bool authentic, uint256 maxActiveNum) = _authenticated(childNFTAddress);
-        bool whitelisted = 
         Child memory child = Child({contractAddress: childNFTAddress, tokenId: childId});
 
         // check if current child NFT address is authenticated
@@ -179,5 +188,27 @@ library LibNestable {
         s._activeChildrenAddressCount[parentId][childAddress]++;
 
         emit ChildAccepted(parentId, childIndex, childAddress, childId);
+    }
+
+    /**
+     * @notice Used to check if this child NFT can be accepted as child, some of NFT may need to pay
+     * @param   childContractAddress    child NFT's smart contract address
+     * @param   childTokenId            child NFT's ID in its original smart contract
+     * @param   payValue                user payed value in this transaction
+     */
+    function checkAcceptingCondition(address childContractAddress, uint256 childTokenId, uint256 payValue) internal view {
+        AppStorage storage s = LibAppStorage.diamondStorage();
+        address scManagerAddress = s._authenticateSCManager;
+
+        // 1. check price
+        uint256 price = IAuthenticateSCManager(scManagerAddress).queryPrice(childContractAddress, childTokenId);
+        require(payValue >= price, "under priced for accepting children!");
+
+        uint256 nftType = IAuthenticateSCManager(scManagerAddress).nftType(childContractAddress);
+
+        // 2. if current address is expirable for acceptance, should check if current child token is expired
+        if (nftType == 4) {
+            require(!IAuthenticateSCManager(scManagerAddress).expired(childContractAddress, childTokenId), "this item is already expired");
+        }
     }
 }

@@ -33,8 +33,9 @@
     "standard": "^16.0.3"
   },
   "dependencies": {
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.8",
     "@openzeppelin/contracts": "^4.8.2",
-    "@rmrk-team/evm-contracts": "^0.26.0",
+    "@rmrk-team/evm-contracts": "^1.0.1",
     "hardhat-deploy": "^0.11.24"
   }
 }

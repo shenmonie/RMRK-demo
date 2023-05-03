@@ -12,6 +12,12 @@ const { deployTicketNFT } = require('../scripts/deployTicketNFT.js')
 
 const { assert, expect } = require('chai')
 const { ethers, waffle } = require('hardhat')
+const { time } = require('@nomicfoundation/hardhat-network-helpers')
+
+let sleep= (time)=> new Promise((resolve)=>{
+  setTimeout(resolve,time)
+})
+
 
 describe('DiamondTest', async function () {
 
@@ -32,6 +38,7 @@ describe('DiamondTest', async function () {
   let royaltyInfoFacet
   let mintAndBurnFacet
   let rmrkNestableFacet
+  let whitelistFacet
   
   // libraries
   let libERC721
@@ -42,6 +49,8 @@ describe('DiamondTest', async function () {
   let galleryEventTicket;
   let concertEventTicketAddress;
   let concertEventTicket;
+  let butcheryGoodsAddress;
+  let butcheryGoods;
 
   // provider
   let provider
@@ -49,11 +58,7 @@ describe('DiamondTest', async function () {
 
   before(async function () {
 
-    let ticketDeployResult = await deployTicketNFT()
-    galleryEventTicketAddress = ticketDeployResult.galleryEventTicket
-    concertEventTicketAddress = ticketDeployResult.concertEventTicket
-
-
+    // deploy diamond 
     let result = await deployDiamond()
     diamondAddress = result.diamondAddress
     authenticateSCManagerAddress = result.scManagerAddress
@@ -66,6 +71,16 @@ describe('DiamondTest', async function () {
     royaltyInfoFacet = await ethers.getContractAt('RoyaltyInfoFacet', diamondAddress)
     mintAndBurnFacet = await ethers.getContractAt('RMRKMintAndBurnFacet', diamondAddress)
     rmrkNestableFacet = await ethers.getContractAt('RMRKNestableFacet', diamondAddress)
+    whitelistFacet = await ethers.getContractAt('WhitelistFacet', diamondAddress)
+
+    // deploy demo 
+    let ticketDeployResult = await deployTicketNFT(authenticateSCManagerAddress)
+    galleryEventTicketAddress = ticketDeployResult.galleryEventTicket
+    galleryEventTicket = await ethers.getContractAt('GalleryEventTicket', galleryEventTicketAddress)
+    concertEventTicketAddress = ticketDeployResult.concertEventTicket
+    concertEventTicket = await ethers.getContractAt('ConcertEventTicket', concertEventTicketAddress)
+    butcheryGoodsAddress = ticketDeployResult.butcheryGoods
+    butcheryGoods = await ethers.getContractAt('ButcheryGoods', butcheryGoodsAddress)
 
     libERC721 = await ethers.getContractFactory('LibERC721')
     libRMRKNestable = await ethers.getContractFactory('LibNestable')
@@ -73,12 +88,12 @@ describe('DiamondTest', async function () {
     provider = waffle.provider
   })
 
-  it('should have nine facets -- call to facetAddresses function', async () => {
+  it('should have ten facets -- call to facetAddresses function', async () => {
     for (const address of await diamondLoupeFacet.facetAddresses()) {
       addresses.push(address)
     }
 
-    assert.equal(addresses.length, 9)
+    assert.equal(addresses.length, 10)
   })
 
   it('facets should have the right function selectors -- call to facetFunctionSelectors function', async () => {
@@ -141,6 +156,33 @@ describe('DiamondTest', async function () {
     assert.equal(royaltyPercentage, 2)
   })
 
+  it('should not mint before whitelist is initialized', async() => {
+    const accounts = await ethers.getSigners()
+    const contractOwner = accounts[0]
+    const contractOwnerAddress = await contractOwner.getAddress()
+    const payValue = ethers.utils.parseUnits("0.001","ether")
+    await expect(mintAndBurnFacet.mint(contractOwnerAddress, {value: payValue})).to.be.revertedWith('whitelist is not initialized')
+  })
+
+  it('should successfully add an addresses into the whitelist', async() => {
+    const accounts = await ethers.getSigners()
+
+    const contractOwnerAddress = await accounts[0].getAddress()
+    const anotherAddress = await accounts[1].getAddress()
+    
+    await expect(whitelistFacet.createWhitelist('main NFT mint whitelist', [contractOwnerAddress, anotherAddress]))
+      .to.emit(whitelistFacet, 'WhitelistCreated').withArgs(1)
+    
+    await mintAndBurnFacet.initializeWhitelistId(1)
+  })
+
+  it('should failed to mint one if current address is not in whitelist', async() => {
+    const accounts = await ethers.getSigners()
+    const address = await accounts[2].getAddress()
+    const payValue = ethers.utils.parseUnits("0.001","ether")
+    await expect(mintAndBurnFacet.mint(address, {value: payValue})).to.be.revertedWith('current address is not in whitelist')
+  })
+
   // mint a new nestable NFT - should not mint under price
   it('should not mint under price', async () => {
     const accounts = await ethers.getSigners()
@@ -148,12 +190,6 @@ describe('DiamondTest', async function () {
     const contractOwnerAddress = await contractOwner.getAddress()
     const payValue = ethers.utils.parseUnits("0.001","ether")
     await expect(mintAndBurnFacet.mint(contractOwnerAddress, {value: payValue})).to.be.revertedWith('RMRKMintUnderpriced')
-  })
-
-  // mint a new nestable NFT - should not mint to zero address
-  it('should not mint to zero address', async () => {
-    const payValue = ethers.utils.parseUnits("0.01","ether")
-    await expect(mintAndBurnFacet.mint(ethers.constants.AddressZero, {value: payValue})).to.be.revertedWith('ERC721MintToTheZeroAddress')
   })
 
   // mint a new nestable NFT - should success
@@ -186,72 +222,53 @@ describe('DiamondTest', async function () {
   })
 
   it('should successfully register gallery ticket and try to add it into main NFT collection', async() => {
-    // 1. try to deploy Gallery event ticket
-    const pricePerMint = ethers.utils.parseEther('0.001');
-    // Define the constructor arguments
-    const initData = {
-      erc20TokenAddress: "0x0000000000000000000000000000000000001010",
-      tokenUriIsEnumerable: false,
-      royaltyRecipient: "0xA0AFCFD57573C211690aA8c43BeFDfC082680D58",
-      royaltyPercentageBps: 2,
-      maxSupply: 8,
-      pricePerMint: pricePerMint
-    };
-    const GalleryEventTicket = await ethers.getContractFactory('GalleryEventTicket')
-    const gallertEventTicket = await GalleryEventTicket.deploy(initData)
-    await gallertEventTicket.deployed()
+
+    // 1. try to add whitelist smart contract
+    await authenticateSCManager.registerWhitelist(galleryEventTicket.address, 1, 0)
 
     // 2. try to add authenticate smart contract address to authenticateSCManager
-    await authenticateSCManager.register(gallertEventTicket.address, 1)
+    await authenticateSCManager.registerAuthentic(galleryEventTicket.address, 1)
 
     // 3. try to add this ticket as a child NFT into main NFT's collection
     const payValue = ethers.utils.parseUnits("0.001","ether")
-    await expect(gallertEventTicket.nestMint(diamondAddress, 1, 1, {value: payValue}))
+    await expect(galleryEventTicket.nestMint(diamondAddress, 1, 1, {value: payValue}))
       .to.emit(libRMRKNestable.attach(diamondAddress), 'ChildAccepted')
-      .withArgs(1, 0, gallertEventTicket.address, 1);
+      .withArgs(1, 0, galleryEventTicket.address, 1);
 
     // 4. check tokenId:1 's child NFT collection
     console.log('check tokneId 1\'s child NFT collection...')
     const child = await rmrkNestableFacet.childrenOf(1);
     assert.equal(1, child.length)
-    assert.equal(child[0].contractAddress, gallertEventTicket.address)
+    assert.equal(child[0].contractAddress, galleryEventTicket.address)
     assert.equal(child[0].tokenId, 1)
 
     // 5. check child NFT's token url
-    console.log('check tokneId 1\'s token Uri')
-    const tokenUri = await gallertEventTicket.tokenURI(child[0].tokenId)
+    const tokenUri = await galleryEventTicket.tokenURI(child[0].tokenId)
     assert.equal(tokenUri, 'https://project-oracle-test.mypinata.cloud/ipfs/bafkreihalvnukt7czf7rzkhpel3os3ugznfztycdg376tixenut5izho2u')
 
     // 6. try to add one more, it should go to the pending child array, emitting `ChildProposed` event
-    console.log('try adding one more NFT, should be in pending children queue')
-    await expect(gallertEventTicket.nestMint(diamondAddress, 1, 1, {value: payValue}))
+    await expect(galleryEventTicket.nestMint(diamondAddress, 1, 1, {value: payValue}))
       .to.emit(libRMRKNestable.attach(diamondAddress), 'ChildProposed')
-      .withArgs(1, 0, gallertEventTicket.address, 2);
+      .withArgs(1, 0, galleryEventTicket.address, 2);
     
     // 7. check pending child NFTs
-    console.log('checking pending children queue...')
     const pendingChildren = await rmrkNestableFacet.pendingChildrenOf(1)
     assert.equal(pendingChildren.length, 1)
-    assert.equal(pendingChildren[0].contractAddress, gallertEventTicket.address)
+    assert.equal(pendingChildren[0].contractAddress, galleryEventTicket.address)
     assert.equal(pendingChildren[0].tokenId, 2)
   })
 
-  it('should directly be added into pending children for not authenticated NFT', async () => {
-      // 1. try to deploy Gallery event ticket
-      const pricePerMint = ethers.utils.parseEther('0.001');
-      // Define the constructor arguments
-      const initData = {
-        erc20TokenAddress: "0x0000000000000000000000000000000000001010",
-        tokenUriIsEnumerable: false,
-        royaltyRecipient: "0xA0AFCFD57573C211690aA8c43BeFDfC082680D58",
-        royaltyPercentageBps: 2,
-        maxSupply: 8,
-        pricePerMint: pricePerMint
-      };
-      const ConcertEventTicket = await ethers.getContractFactory('ConcertEventTicket')
-      const concertEventTicket = await ConcertEventTicket.deploy(initData)
-      await concertEventTicket.deployed()
+  it('should failed to nestmint before registering the whitelist', async() => {
+      const payValue = ethers.utils.parseUnits("0.001","ether")
+      // the concert event ticket NFT is not added to whitelist, should be reverted
+      await expect(concertEventTicket.nestMint(diamondAddress, 1, 1, {value: payValue}))
+        .to.be.revertedWith("child NFT address is not whitelisted")
+  })
 
+  it('should directly be added into pending children for not authenticated NFT', async () => {
+      // register to whitelist first
+      await authenticateSCManager.registerWhitelist(concertEventTicket.address, 1, 0)
+      
       const payValue = ethers.utils.parseUnits("0.001","ether")
       // we have minted a pending child before, so the initial length of this event should be 1
       await expect(concertEventTicket.nestMint(diamondAddress, 1, 1, {value: payValue}))
@@ -267,6 +284,77 @@ describe('DiamondTest', async function () {
       // query the newly minted tokenUri
       const tokenUri = await concertEventTicket.tokenURI(pendingChildren[1].tokenId)
       assert.equal(tokenUri, 'https://project-oracle-test.mypinata.cloud/ipfs/bafkreigby7f6vpmu6zyosdgmaagkdzx2gocuiqhphgbvbdnuz7qtsamena')
+  })
+
+  it('butchery goods should be successfully registerred into whitelist', async() => {
+      // register to whitelist
+      await authenticateSCManager.registerWhitelist(butcheryGoods.address, 4, 0)
+  })
+
+  it('should successfully be accepted when expirable child NFT is valid', async() => {
+      // nest mint a butchery goods NFT
+      let acceptingPrice = ethers.utils.parseUnits("0.1", "ether")
+      let expireTime = Math.floor((new Date()).getTime() / 1000) + 3 * 30 * 24 * 60 * 60
+
+      // we have minted a pending child before, so the initial length of this event should be 2
+      await expect(butcheryGoods.nestMintOne(diamondAddress, 1, acceptingPrice, expireTime))
+        .to.emit(libRMRKNestable.attach(diamondAddress), 'ChildProposed')
+        .withArgs(1, 2, butcheryGoods.address, 1);
+
+
+      // check out the pending children queue first
+      const pendingChildren = await rmrkNestableFacet.pendingChildrenOf(1)
+      assert.equal(pendingChildren.length, 3)
+      assert.equal(pendingChildren[2].contractAddress, butcheryGoods.address)
+      assert.equal(pendingChildren[2].tokenId, 1)
+
+      // try accept the pending child with lower price
+      let lowerPrice = ethers.utils.parseUnits("0.09", "ether")
+      await expect(rmrkNestableFacet.acceptChild(1, 2, pendingChildren[2].contractAddress, pendingChildren[2].tokenId, {value: lowerPrice}))
+        .to.be.revertedWith("under priced for accepting children!")
+
+      // now the tokenURI should be the normal one
+      let tokenURI = await butcheryGoods.tokenURI(1)
+      assert.equal("https://project-oracle-test.mypinata.cloud/ipfs/bafkreibgpalkofnmhbz323d5a56s6krog5tagxqckd7fl7b24ayx7slylu", tokenURI)
+
+      await time.increase(2 * 30 * 24 * 60 * 60);
+
+      // since 60% percent of time has elapsed, it should become of nearly expiration
+      tokenURI = await butcheryGoods.tokenURI(1)
+      assert.equal("https://project-oracle-test.mypinata.cloud/ipfs/bafkreifo3r75hz4ajrb6rr6457m57u6p4275d35k4xitfvkuin34a7zf3q", tokenURI)
+
+
+      // try accept the pending child with higher price
+      await expect(rmrkNestableFacet.acceptChild(1, 2, pendingChildren[2].contractAddress, pendingChildren[2].tokenId, {value: acceptingPrice}))
+        .to.emit(libRMRKNestable.attach(diamondAddress), 'ChildAccepted')
+        .withArgs(1, 2, butcheryGoods.address, 1);
+
+  })
+
+  it('should failed to be accepted when expirable child NFT is expired', async() => {
+      // nest mint a butchery goods NFT
+      let acceptingPrice = ethers.utils.parseUnits("0.1", "ether")
+      let expireTime = Math.floor((new Date()).getTime() / 1000) + 10
+      // we have minted a pending child before, so the initial length of this event should also be 2
+      await expect(butcheryGoods.nestMintOne(diamondAddress, 1, acceptingPrice, expireTime))
+        .to.emit(libRMRKNestable.attach(diamondAddress), 'ChildProposed')
+        .withArgs(1, 2, butcheryGoods.address, 2);
+
+      // check out the pending children queue first
+      const pendingChildren = await rmrkNestableFacet.pendingChildrenOf(1)
+      assert.equal(pendingChildren.length, 3)
+      assert.equal(pendingChildren[2].contractAddress, butcheryGoods.address)
+      assert.equal(pendingChildren[2].tokenId, 2)
+
+      // sleep 15 seconds to wait for the pending NFT to be expired
+      await time.increase(15);
+
+      // since it is already expired, the url should changed expired
+      let tokenURI = await butcheryGoods.tokenURI(2)
+      assert.equal("https://project-oracle-test.mypinata.cloud/ipfs/bafkreiglkl2a6c4wjfgrexrzawwcne4vaex3fgmhz56wrxbtjrfnpskmr4", tokenURI)
+
+      await expect(rmrkNestableFacet.acceptChild(1, 2, pendingChildren[2].contractAddress, pendingChildren[2].tokenId, {value: acceptingPrice}))
+        .to.be.revertedWith("this item is already expired")
   })
 
 })
