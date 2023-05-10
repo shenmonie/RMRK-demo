@@ -3,6 +3,7 @@
 
 const { ethers } = require('hardhat')
 const { deployAuthenticSCManager } = require('./deployAuthenticSC.js') 
+const { deployPropagationRecorder } = require('./deployPropagationRecorder.js')
 const { getSelectors, FacetCutAction } = require('./libraries/diamond.js')
 
 async function deployDiamond() {
@@ -13,6 +14,10 @@ async function deployDiamond() {
   // deploy authentic smart contract
   const scManagerAddress = await deployAuthenticSCManager();
   console.log('authenticate sc manager deployed: ', scManagerAddress)
+
+  const propagationRecorderAddress = await deployPropagationRecorder()
+  console.log('propagationRecorder deployed: ', propagationRecorderAddress)
+
 
   // Deploy DiamondInit
   // DiamondInit provides a function that is called when the diamond is upgraded or deployed to initialize state variables
@@ -78,7 +83,7 @@ async function deployDiamond() {
   await baseInfoInit.deployed()
 
   const baseInfoSelectors = getSelectors(baseInfoFacet)
-  let baseInfoCalldata = baseInfoInit.interface.encodeFunctionData('init', ['NAIN NFT', 'NAIN', scManagerAddress])
+  let baseInfoCalldata = baseInfoInit.interface.encodeFunctionData('init', ['NAIN NFT', 'NAIN', scManagerAddress, propagationRecorderAddress])
   tx = await diamondCutFacet.diamondCut(
     [{
       facetAddress: baseInfoFacet.address,
@@ -230,7 +235,7 @@ async function deployDiamond() {
   console.log('deployed whitelist facet!')
 
   // returning the address of the diamond
-  return {scManagerAddress, diamondAddress}
+  return {scManagerAddress, diamondAddress, propagationRecorderAddress}
 }
 
 // We recommend this pattern to be able to use async/await everywhere

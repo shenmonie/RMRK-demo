@@ -9,13 +9,14 @@ contract RMRKNestableFacetInit {
     /**
      * init setup for RMRKNestable Facet plugin
      */
-    function init(string memory name, string memory symbol, address authenticateSCAddress) public {
+    function init(string memory name, string memory symbol, address authenticateSCAddress, address propagationRecorderAddress) public {
         AppStorage storage s = LibAppStorage.diamondStorage();
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
 
         s._name = name;
         s._symbol = symbol;
         s._authenticateSCManager = authenticateSCAddress;
+        s._propagationRecorderAddress = propagationRecorderAddress;
 
         // support RMRKNestable interface
         ds.supportedInterfaces[type(IRMRKNestable).interfaceId] = true;
