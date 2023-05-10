@@ -50,6 +50,9 @@ struct AppStorage {
     // authenticate smart contract address manager
     address _authenticateSCManager;
 
+    // propagation recorder address
+    address _propagationRecorderAddress;
+
     // Mapping owner address to token count
     mapping(address => uint256) _balances;
     // Mapping from token ID to approver address to approved address

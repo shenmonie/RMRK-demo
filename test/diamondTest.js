@@ -26,6 +26,8 @@ describe('DiamondTest', async function () {
   let diamondAddress
   let authenticateSCManagerAddress
   let authenticateSCManager
+  let propagationRecorderAddress
+  let propagationRecorder
   let diamondCutFacet
   let diamondLoupeFacet
   let ownershipFacet
@@ -62,7 +64,9 @@ describe('DiamondTest', async function () {
     let result = await deployDiamond()
     diamondAddress = result.diamondAddress
     authenticateSCManagerAddress = result.scManagerAddress
+    propagationRecorderAddress = result.propagationRecorderAddress
     authenticateSCManager = await ethers.getContractAt('AuthenticateSCManager', authenticateSCManagerAddress)
+    propagationRecorder = await ethers.getContractAt('PropagationRecorder', propagationRecorderAddress)
     diamondCutFacet = await ethers.getContractAt('DiamondCutFacet', diamondAddress)
     diamondLoupeFacet = await ethers.getContractAt('DiamondLoupeFacet', diamondAddress)
     ownershipFacet = await ethers.getContractAt('OwnershipFacet', diamondAddress)
@@ -293,6 +297,9 @@ describe('DiamondTest', async function () {
 
   it('should successfully be accepted when expirable child NFT is valid', async() => {
       // nest mint a butchery goods NFT
+      const accounts = await ethers.getSigners()
+      const address = await accounts[1].getAddress()
+
       let acceptingPrice = ethers.utils.parseUnits("0.1", "ether")
       let expireTime = Math.floor((new Date()).getTime() / 1000) + 3 * 30 * 24 * 60 * 60
 
@@ -323,12 +330,19 @@ describe('DiamondTest', async function () {
       tokenURI = await butcheryGoods.tokenURI(1)
       assert.equal("https://project-oracle-test.mypinata.cloud/ipfs/bafkreifo3r75hz4ajrb6rr6457m57u6p4275d35k4xitfvkuin34a7zf3q", tokenURI)
 
-
+      let originalBalance = await provider.getBalance(address)
+      let originalSmartContractBalance = await provider.getBalance(diamondAddress)
       // try accept the pending child with higher price
       await expect(rmrkNestableFacet.acceptChild(1, 2, pendingChildren[2].contractAddress, pendingChildren[2].tokenId, {value: acceptingPrice}))
         .to.emit(libRMRKNestable.attach(diamondAddress), 'ChildAccepted')
         .withArgs(1, 2, butcheryGoods.address, 1);
 
+      // should deposit 15% of the price locally and send another 85% to the contract owner
+      // we cannot estimate gas fee here, set a 84% threshould to make sure current owner of the contract receive enough bonus
+      let currentBalance = await provider.getBalance(address)
+      let currentSmartContractBalance = await provider.getBalance(diamondAddress)
+      assert.isTrue(currentBalance.sub(originalBalance).eq(ethers.utils.parseUnits((0.1 * 0.85).toString(), "ether")))
+      assert.isTrue(currentSmartContractBalance.sub(originalSmartContractBalance).eq(ethers.utils.parseUnits((0.1 * 0.15).toString(), "ether")))
   })
 
   it('should failed to be accepted when expirable child NFT is expired', async() => {
@@ -355,6 +369,226 @@ describe('DiamondTest', async function () {
 
       await expect(rmrkNestableFacet.acceptChild(1, 2, pendingChildren[2].contractAddress, pendingChildren[2].tokenId, {value: acceptingPrice}))
         .to.be.revertedWith("this item is already expired")
+  })
+
+  it('should failed to update default rate when operator is not the owner', async() => {
+    const accounts = await ethers.getSigners()
+
+    const currentOperator = accounts[1]
+    await expect(propagationRecorder.connect(currentOperator).updateDefaultRate(13)).to.be
+      .revertedWith('Ownable: caller is not the owner')
+  })
+
+  it('should success to update default rate when operator is the owner', async() => {
+    await expect(propagationRecorder.updateDefaultRate(14))
+      .to.emit(propagationRecorder, 'defaultRateUpdate').withArgs(15, 14)
+  })
+
+  it('should successfully accept child NFT in updated charge rate', async () => {
+    
+    // nest mint a butchery goods NFT
+    const accounts = await ethers.getSigners()
+    const address = await accounts[1].getAddress()
+
+    let acceptingPrice = ethers.utils.parseUnits("0.1", "ether")
+    let expireTime = Math.floor((new Date()).getTime() / 1000) + 3 * 30 * 24 * 60 * 60
+    // we have minted a pending child before, so the initial length of this event should also be 2
+    await expect(butcheryGoods.nestMintOne(diamondAddress, 1, acceptingPrice, expireTime))
+      .to.emit(libRMRKNestable.attach(diamondAddress), 'ChildProposed')
+      .withArgs(1, 3, butcheryGoods.address, 3);
+
+    // check out the pending children queue first
+    const pendingChildren = await rmrkNestableFacet.pendingChildrenOf(1)
+    assert.equal(pendingChildren.length, 4)
+    assert.equal(pendingChildren[3].contractAddress, butcheryGoods.address)
+    assert.equal(pendingChildren[3].tokenId, 3)
+    
+    let originalBalance = await provider.getBalance(address)
+    let originalSmartContractBalance = await provider.getBalance(diamondAddress)
+    await expect(rmrkNestableFacet.acceptChild(1, 3, pendingChildren[3].contractAddress, pendingChildren[3].tokenId, {value: acceptingPrice}))
+      .to.emit(libRMRKNestable.attach(diamondAddress), 'ChildAccepted')
+      .withArgs(1, 3, butcheryGoods.address, 3);
+
+    // default charge rate has been changed to 12%
+    let currentBalance = await provider.getBalance(address)
+    let currentSmartContractBalance = await provider.getBalance(diamondAddress)
+    console.log("expect: ", ethers.utils.parseUnits((0.086).toString(), "ether"), "current sub: ", currentBalance.sub(originalBalance))
+    assert.isTrue(currentBalance.sub(originalBalance).eq(ethers.utils.parseUnits((0.086).toString(), "ether")))
+    console.log("expect: ", ethers.utils.parseUnits((0.014).toString(), "ether"), "current sub: ", currentSmartContractBalance.sub(originalSmartContractBalance))
+    assert.isTrue(currentSmartContractBalance.sub(originalSmartContractBalance).eq(ethers.utils.parseUnits((0.014).toString(), "ether")))
+  
+  }) 
+
+  it('should successfully update threshold and record tagged person nums', async() => {
+    // nest mint a butchery goods NFT
+    const accounts = await ethers.getSigners()
+    const address = await accounts[1].getAddress()
+
+    await expect(propagationRecorder.updateLevelSetting(15, 13))
+      .to.emit(propagationRecorder, 'thresholdSettingUpdate').withArgs(15, 13)
+
+    await expect(propagationRecorder.record(address, 25))
+      .to.emit(propagationRecorder, 'PeopleTaggedUpdate').withArgs(address, 25)
+  })
+
+  it('should successfully accept child NFT in updated charge rate with new threshold', async () => {
+    // nest mint a butchery goods NFT
+    const accounts = await ethers.getSigners()
+    const address = await accounts[1].getAddress()
+
+    let acceptingPrice = ethers.utils.parseUnits("0.1", "ether")
+    let expireTime = Math.floor((new Date()).getTime() / 1000) + 3 * 30 * 24 * 60 * 60
+    // we have minted a pending child before, so the initial length of this event should also be 2
+    await expect(butcheryGoods.nestMintOne(diamondAddress, 1, acceptingPrice, expireTime))
+      .to.emit(libRMRKNestable.attach(diamondAddress), 'ChildProposed')
+      .withArgs(1, 3, butcheryGoods.address, 4);
+
+    // check out the pending children queue first
+    const pendingChildren = await rmrkNestableFacet.pendingChildrenOf(1)
+    assert.equal(pendingChildren.length, 4)
+    assert.equal(pendingChildren[3].contractAddress, butcheryGoods.address)
+    assert.equal(pendingChildren[3].tokenId, 4)
+    
+    let originalBalance = await provider.getBalance(address)
+    let originalSmartContractBalance = await provider.getBalance(diamondAddress)
+    await expect(rmrkNestableFacet.acceptChild(1, 3, pendingChildren[3].contractAddress, pendingChildren[3].tokenId, {value: acceptingPrice}))
+      .to.emit(libRMRKNestable.attach(diamondAddress), 'ChildAccepted')
+      .withArgs(1, 3, butcheryGoods.address, 4);
+
+    // default charge rate has been changed to 13%
+    let currentBalance = await provider.getBalance(address)
+    let currentSmartContractBalance = await provider.getBalance(diamondAddress)
+    console.log("expect: ", ethers.utils.parseUnits((0.087).toString(), "ether"), "current sub: ", currentBalance.sub(originalBalance))
+    assert.isTrue(currentBalance.sub(originalBalance).eq(ethers.utils.parseUnits((0.087).toString(), "ether")))
+    assert.isTrue(currentSmartContractBalance.sub(originalSmartContractBalance).eq(ethers.utils.parseUnits((0.013).toString(), "ether")))
+  })
+
+  it('should successfully update threshold again', async() => {
+    // nest mint a butchery goods NFT
+    const accounts = await ethers.getSigners()
+    const address = await accounts[1].getAddress()
+
+    await expect(propagationRecorder.updateLevelSetting(25, 11))
+      .to.emit(propagationRecorder, 'thresholdSettingUpdate').withArgs(25, 11)
+  })
+
+
+  it('should successfully accept child NFT in updated charge rate with new threshold - 2', async () => {
+    // nest mint a butchery goods NFT
+    const accounts = await ethers.getSigners()
+    const address = await accounts[1].getAddress()
+
+    let acceptingPrice = ethers.utils.parseUnits("0.1", "ether")
+    let expireTime = Math.floor((new Date()).getTime() / 1000) + 3 * 30 * 24 * 60 * 60
+    // we have minted a pending child before, so the initial length of this event should also be 2
+    await expect(butcheryGoods.nestMintOne(diamondAddress, 1, acceptingPrice, expireTime))
+      .to.emit(libRMRKNestable.attach(diamondAddress), 'ChildProposed')
+      .withArgs(1, 3, butcheryGoods.address, 5);
+
+    // check out the pending children queue first
+    const pendingChildren = await rmrkNestableFacet.pendingChildrenOf(1)
+    assert.equal(pendingChildren.length, 4)
+    assert.equal(pendingChildren[3].contractAddress, butcheryGoods.address)
+    assert.equal(pendingChildren[3].tokenId, 5)
+    
+    let originalBalance = await provider.getBalance(address)
+    let originalSmartContractBalance = await provider.getBalance(diamondAddress)
+    await expect(rmrkNestableFacet.acceptChild(1, 3, pendingChildren[3].contractAddress, pendingChildren[3].tokenId, {value: acceptingPrice}))
+      .to.emit(libRMRKNestable.attach(diamondAddress), 'ChildAccepted')
+      .withArgs(1, 3, butcheryGoods.address, 5);
+
+    // default charge rate has been changed to 13%
+    let currentBalance = await provider.getBalance(address)
+    let currentSmartContractBalance = await provider.getBalance(diamondAddress)
+    assert.isTrue(currentBalance.sub(originalBalance).eq(ethers.utils.parseUnits((0.089).toString(), "ether")))
+    assert.isTrue(currentSmartContractBalance.sub(originalSmartContractBalance).eq(ethers.utils.parseUnits((0.011).toString(), "ether")))
+  })
+
+  it('should successfully update threshold again - 2', async() => {
+    // nest mint a butchery goods NFT
+    const accounts = await ethers.getSigners()
+    const address = await accounts[1].getAddress()
+
+    await expect(propagationRecorder.updateLevelSetting(35, 9))
+      .to.emit(propagationRecorder, 'thresholdSettingUpdate').withArgs(35, 9)
+    
+    await expect(propagationRecorder.record(address, 40))
+      .to.emit(propagationRecorder, 'PeopleTaggedUpdate').withArgs(address, 40)
+  })
+
+  it('should successfully accept child NFT in updated charge rate with new threshold - 3', async () => {
+    // nest mint a butchery goods NFT
+    const accounts = await ethers.getSigners()
+    const address = await accounts[1].getAddress()
+
+    let acceptingPrice = ethers.utils.parseUnits("0.1", "ether")
+    let expireTime = Math.floor((new Date()).getTime() / 1000) + 3 * 30 * 24 * 60 * 60
+    // we have minted a pending child before, so the initial length of this event should also be 2
+    await expect(butcheryGoods.nestMintOne(diamondAddress, 1, acceptingPrice, expireTime))
+      .to.emit(libRMRKNestable.attach(diamondAddress), 'ChildProposed')
+      .withArgs(1, 3, butcheryGoods.address, 6);
+
+    // check out the pending children queue first
+    const pendingChildren = await rmrkNestableFacet.pendingChildrenOf(1)
+    assert.equal(pendingChildren.length, 4)
+    assert.equal(pendingChildren[3].contractAddress, butcheryGoods.address)
+    assert.equal(pendingChildren[3].tokenId, 6)
+    
+    let originalBalance = await provider.getBalance(address)
+    let originalSmartContractBalance = await provider.getBalance(diamondAddress)
+    await expect(rmrkNestableFacet.acceptChild(1, 3, pendingChildren[3].contractAddress, pendingChildren[3].tokenId, {value: acceptingPrice}))
+      .to.emit(libRMRKNestable.attach(diamondAddress), 'ChildAccepted')
+      .withArgs(1, 3, butcheryGoods.address, 6);
+
+    // default charge rate has been changed to 9%
+    let currentBalance = await provider.getBalance(address)
+    let currentSmartContractBalance = await provider.getBalance(diamondAddress)
+    assert.isTrue(currentBalance.sub(originalBalance).eq(ethers.utils.parseUnits((0.091).toString(), "ether")))
+    assert.isTrue(currentSmartContractBalance.sub(originalSmartContractBalance).eq(ethers.utils.parseUnits((0.009).toString(), "ether")))
+  })
+
+  it('should successfully remove a threshold ', async() => {
+    // nest mint a butchery goods NFT
+    const accounts = await ethers.getSigners()
+    const address = await accounts[1].getAddress()
+
+    await expect(propagationRecorder.removeLevelSetting(35))
+      .to.emit(propagationRecorder, 'thresholdSettingRemove').withArgs(35)
+
+    await expect(propagationRecorder.updateLevelSetting(25, 10))
+      .to.emit(propagationRecorder, 'thresholdSettingUpdate').withArgs(25, 10)
+  })
+
+  it('should successfully accept child NFT in updated charge rate with new threshold - 4', async () => {
+    // nest mint a butchery goods NFT
+    const accounts = await ethers.getSigners()
+    const address = await accounts[1].getAddress()
+
+    let acceptingPrice = ethers.utils.parseUnits("0.1", "ether")
+    let expireTime = Math.floor((new Date()).getTime() / 1000) + 3 * 30 * 24 * 60 * 60
+    // we have minted a pending child before, so the initial length of this event should also be 2
+    await expect(butcheryGoods.nestMintOne(diamondAddress, 1, acceptingPrice, expireTime))
+      .to.emit(libRMRKNestable.attach(diamondAddress), 'ChildProposed')
+      .withArgs(1, 3, butcheryGoods.address, 7);
+
+    // check out the pending children queue first
+    const pendingChildren = await rmrkNestableFacet.pendingChildrenOf(1)
+    assert.equal(pendingChildren.length, 4)
+    assert.equal(pendingChildren[3].contractAddress, butcheryGoods.address)
+    assert.equal(pendingChildren[3].tokenId, 7)
+    
+    let originalBalance = await provider.getBalance(address)
+    let originalSmartContractBalance = await provider.getBalance(diamondAddress)
+    await expect(rmrkNestableFacet.acceptChild(1, 3, pendingChildren[3].contractAddress, pendingChildren[3].tokenId, {value: acceptingPrice}))
+      .to.emit(libRMRKNestable.attach(diamondAddress), 'ChildAccepted')
+      .withArgs(1, 3, butcheryGoods.address, 7);
+
+    // default charge rate has been changed to 10%
+    let currentBalance = await provider.getBalance(address)
+    let currentSmartContractBalance = await provider.getBalance(diamondAddress)
+    console.log("expect: ", ethers.utils.parseUnits((0.09).toString(), "ether"), "current sub: ", currentBalance.sub(originalBalance))
+    assert.isTrue(currentBalance.sub(originalBalance).eq(ethers.utils.parseUnits((0.09).toString(), "ether")))
+    assert.isTrue(currentSmartContractBalance.sub(originalSmartContractBalance).eq(ethers.utils.parseUnits((0.01).toString(), "ether")))
   })
 
 })

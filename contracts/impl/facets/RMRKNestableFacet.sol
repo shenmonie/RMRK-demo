@@ -17,6 +17,7 @@ import {LibQuery} from "../libs/LibQuery.sol";
 import "../../shared/RMRKErrors.sol";
 import {LibNestable} from "../libs/LibNestable.sol";
 import {LibOwnership} from "../libs/LibOwnership.sol";
+import {LibCharge} from "../libs/LibCharge.sol";
 
 /**
  * @title RMRKNestable
@@ -89,8 +90,14 @@ contract RMRKNestableFacet is Modifiers {
     function acceptChild(uint256 parentId, uint256 childIndex, address childAddress, uint256 childId) public payable onlyApprovedOrOwner(parentId) {
         // check the acccepting condition for this child NFT
         LibNestable.checkAcceptingCondition(childAddress, childId, msg.value);
-        
+
         _acceptChild(parentId, childIndex, childAddress, childId);
+
+        if (msg.value > 0) {
+            // do charge fee
+            LibCharge.charge(childAddress);
+        }
+        
     }
 
     /**
