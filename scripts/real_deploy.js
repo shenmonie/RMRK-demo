@@ -4,6 +4,7 @@
 const { ethers } = require('hardhat')
 const { deployAuthenticSCManager } = require('./deployAuthenticSC.js') 
 const { getSelectors, FacetCutAction } = require('./libraries/diamond.js')
+const { deployPropagationRecorder } = require('./deployPropagationRecorder.js')
 
 async function deployDiamond() {
   const accounts = await ethers.getSigners()
@@ -13,6 +14,11 @@ async function deployDiamond() {
   // deploy authentic smart contract
   const scManagerAddress = await deployAuthenticSCManager();
   console.log('authenticate sc manager deployed: ', scManagerAddress)
+
+  // deploy propagation recorder
+  const propagationRecorderAddress = await deployPropagationRecorder()
+  console.log('propagationRecorder deployed: ', propagationRecorderAddress)
+
 
   // Deploy DiamondInit
   // DiamondInit provides a function that is called when the diamond is upgraded or deployed to initialize state variables
@@ -77,7 +83,7 @@ async function deployDiamond() {
   await baseInfoInit.deployed()
 
   const baseInfoSelectors = getSelectors(baseInfoFacet)
-  let baseInfoCalldata = baseInfoInit.interface.encodeFunctionData('init', ['NAIN NFT', 'NAIN', scManagerAddress])
+  let baseInfoCalldata = baseInfoInit.interface.encodeFunctionData('init', ['NAIN NFT', 'NAIN', scManagerAddress, propagationRecorderAddress])
   tx = await diamondCutFacet.diamondCut(
     [{
       facetAddress: baseInfoFacet.address,
